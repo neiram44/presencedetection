@@ -19,20 +19,8 @@
 # phone, they would still require the password of your network to link to your router. 
 macdevice1="00:00:00:00:00:00"    #Aaron Phone
 macdevice2="00:00:00:00:00:00"    #Device 2
-macdevice3="00:00:00:00:00:00"    #Device 3
-macdevice4="00:00:00:00:00:00"    #Device 4
+
   
-#OpenHAB username, password, and IP Address
-username="OPENHAB_USERNAME"
-password="OPENHAB_PASSWORD"
-IPAddr="OPENHAB_IP_ADDRESS"
-port="OPENHAB_PORT"
-  
-# OpenHAB switch items to be updated for each tracked MAC
-item1="aaronPhone"
-item2="DEVICE_2"
-item3="DEVICE_3"
-item4="DEVICE_4"
   
   
 # Occupied and unoccupied delay in seconds to check status
@@ -55,93 +43,61 @@ sleep
 # status of each MAC. 0=disconnected. 1=connected.  -1 initially forces isy update first loop
 macconnected1=-1
 macconnected2=-1
-macconnected3=-1
-macconnected4=-1
 connected=-1
 # total number of currently conencted devices.   
-currentconnected=0
+connected=0
 counter=1
   
 # Initial testing loop.  Will run continually after testing is complete
 while [ $counter -lt $limit ]; do
   
 #maclist stored mac listing in router from status screen
-maclist=$(wl_atheros -i ath0 assoclist | cut -d" " -f2)
+maclist=$(wl -i $(nvram get wl0_ifname) assoclist | cut -d" " -f2)
   
 #reset current status. Two variables are used for each device.  The past known status and the current 
 # status.  Only a change is reported to the ISY.  Otherwise, it would constantly be updating the ISY with 
 # the current status creating unnecessary traffic for both the router and the ISY
 maccurrent1=0;
 maccurrent2=0;
-maccurrent3=0;
-maccurrent4=0;
-  
+
   
 # compare each device that is currently connected to the MAC devices we want to watch.
 for mac in $maclist; do
 case $mac in
    "$macdevice1") maccurrent1=1;;
    "$macdevice2") maccurrent2=1;;
-   "$macdevice3") maccurrent3=1;;
-   "$macdevice4") maccurrent4=1;;
+
 esac
 done
   
 # Look for a change in status from the old known to the current status.
 # If it changed, update the ISY. Otherwise it leaves it as is. 
-if [ $macconnected1 -ne $maccurrent1 ]; then
-     if [ $maccurrent1 -eq 1 ]; then
-         macstatus1="ON";
-     else
-         macstatus1="OFF";
-     fi
-     curl -X POST -d $macstatus1 -H "Content-Type: text/plain" -i http://$username:$password@$IPAddr:$port/rest/items/$item1
+let current=$maccurrent1+$maccurrent2
+
+if [ $current -ne $connected ]; then
+  if [ $current -gt 0 ]; then
+  #Stop SS
+  else
+  # Start SS
+  fi
+  
+else
+#Same Status than before
 fi
+
+
   
-if [ $macconnected2 -ne $maccurrent2 ]; then
-     if [ $maccurrent2 -eq 1 ]; then
-         macstatus2="ON";
-     else
-         macstatus2="OFF";
-     fi
-     curl -X POST -d $macstatus2 -H "Content-Type: text/plain" -i http://$username:$password@$IPAddr:$port/rest/items/$item2
-fi
+
   
-if [ $macconnected3 -ne $maccurrent3 ]; then
-     if [ $maccurrent3 -eq 1 ]; then
-         macstatus3="ON";
-     else
-         macstatus3="OFF";
-     fi
-     curl -X POST -d $macstatus3 -H "Content-Type: text/plain" -i http://$username:$password@$IPAddr:$port/rest/items/$item3
-fi
-    
-if [ $macconnected4 -ne $maccurrent4 ]; then
-     if [ $maccurrent4 -eq 1 ]; then
-         macstatus4="ON";
-     else
-         macstatus4="OFF";
-     fi
-     curl -X POST -d $macstatus4 -H "Content-Type: text/plain" -i http://$username:$password@$IPAddr:$port/rest/items/$item4
-fi
-  
-# Update the known status from the current.  Ready for the next loop. 
-macconnected1=$maccurrent1;
-macconnected2=$maccurrent2;
-macconnected3=$maccurrent3;
-macconnected4=$maccurrent4;
-  
-# Total up the number of devices connected. 
-let currentconnected=$macconnected1+$macconnected2+$macconnected3+$macconnected4
-  
-connected=$currentconnected
+connected=$current
+
   
 # Delay (sleep) depending on the connection status. 
 # No devices connected could delay less.  Once a device is connected, it could delay longer. 
 if [ $connected -gt 0 ]; then
     sleep $delay_occupied
     else
-    sleep $delay_occupied
+    sleep $delay_unoccupied
 fi
   
 #for testing only - uncomment to have the looping stop at X loops defined in variable:  limit. 
